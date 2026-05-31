@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: axiom
+  labels:
+    app: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: axiom/worker:3.2.1
+          # BUG IC-14: imagePullPolicy: Never tells Kubernetes never to pull
+          # the image from the registry. It will always use whatever is cached
+          # on the node. If a new image is pushed with the same tag (e.g. after
+          # a bug fix), this deployment will keep running the old version
+          # indefinitely across restarts and redeployments.
+          # Fix: use IfNotPresent (for versioned tags) or Always (for mutable
+          # tags like :latest). Never is only appropriate for local dev.
+          imagePullPolicy: Never
+          securityContext:
+            # BUG IC-09: privileged: true gives this container full access to
+            # the host kernel — equivalent to running as root on the node.
+            # An attacker who exploits any vulnerability in the worker process
+            # can break out of the container, read secrets from other pods,
+            # modify host files, and pivot to the rest of the cluster.
+            # Fix: remove the securityContext block entirely, or set
+            # privileged: false with allowPrivilegeEscalation: false and
+            # runAsNonRoot: true.
+            privileged: true
+          env:
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: kafka_brokers
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: database_url
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

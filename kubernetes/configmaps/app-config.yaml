@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: axiom
+data:
+  api_url: "https://api.axiom.io"
+  redis_url: "redis://axiom-redis.axiom.svc.cluster.local:6379"
+  kafka_brokers: "kafka-0.kafka.axiom.svc.cluster.local:9092,kafka-1.kafka.axiom.svc.cluster.local:9092"
+  log_level: "info"
+
+  # BUG IC-11: Sensitive credentials are stored in a ConfigMap, not a Secret.
+  # ConfigMaps are stored as plaintext in etcd and are readable by any pod in
+  # the namespace with default RBAC settings. Any engineer with kubectl access
+  # can run `kubectl get configmap app-config -o yaml` and see production
+  # passwords in cleartext.
+  # Kubernetes Secrets are base64-encoded (not encrypted by default), but they
+  # enable encryption-at-rest via EncryptionConfiguration and can be restricted
+  # with fine-grained RBAC. More importantly, use AWS Secrets Manager with the
+  # External Secrets Operator so secrets are never stored in the cluster at all.
+  database_url: "postgresql://axiom_admin:Pr0duct10n#DB2024!@axiom-production-db.cluster.us-east-1.rds.amazonaws.com:5432/axiom"
+  db_password: "Pr0duct10n#DB2024!"
+  jwt_secret: "axm_jwt_s3cr3t_pr0d_2024"
+  stripe_api_key: "sk_live_EXAMPLEKEYDONOTUSE_axiom_prod_2024"

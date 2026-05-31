@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: axiom
+  labels:
+    app: api
+    version: "3.2.1"
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api
+        version: "3.2.1"
+    spec:
+      serviceAccountName: api-service-account
+      containers:
+        - name: api
+          image: axiom/api:3.2.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "8080"
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: database_url
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: redis_url
+          # BUG IC-08: No resource requests or limits defined.
+          # Without requests, the Kubernetes scheduler cannot make informed
+          # placement decisions — the pod may land on an already-starved node.
+          # Without limits, a memory leak or traffic spike in one pod can
+          # consume all node memory, causing an OOM kill of unrelated pods
+          # on the same node (e.g. the worker or monitoring agents).
+          # Fix: add resources.requests and resources.limits.
+
+          # BUG IC-10: No liveness or readiness probes.
+          # Without a readiness probe, Kubernetes routes traffic to this pod
+          # as soon as the container starts — before the app has finished
+          # connecting to the database and is ready to serve requests.
+          # Without a liveness probe, a deadlocked or hung process is never
+          # restarted; it just silently stops serving traffic indefinitely.
+          # Fix: add livenessProbe and readinessProbe on /healthz.
