@@ -34,21 +34,14 @@ jobs:
           docker build -t $ECR_REGISTRY/axiom-api:$IMAGE_TAG .
           docker push $ECR_REGISTRY/axiom-api:$IMAGE_TAG
 
-      # BUG IC-15: GitHub Actions interpolates ${{ secrets.* }} before the
-      # runner executes the shell command. The expanded secret value is printed
-      # directly to the workflow log, which is visible to every repository
-      # collaborator and stored by GitHub for 90 days.
-      # Even with "secret masking", GitHub only masks the exact stored value —
-      # any transformation (base64, truncation) bypasses the mask.
-      # Fix: never echo secrets. Remove these debug lines entirely.
-      # If you need to verify a secret is set, check `secrets.DB_PASSWORD != ''`
-      # in an `if:` condition rather than printing it.
-      - name: Debug deployment config
+      - name: Verify required secrets are configured
+        if: |
+          secrets.DB_PASSWORD == '' ||
+          secrets.JWT_SECRET == '' ||
+          secrets.STRIPE_API_KEY == ''
         run: |
-          echo "Deploying with DB password: ${{ secrets.DB_PASSWORD }}"
-          echo "JWT secret in use: ${{ secrets.JWT_SECRET }}"
-          echo "Stripe key prefix: ${{ secrets.STRIPE_API_KEY }}"
-          echo "Deploy triggered by: ${{ github.actor }} at $(date)"
+          echo "ERROR: One or more required secrets are not configured."
+          exit 1
 
       - name: Update kubeconfig
         run: |
